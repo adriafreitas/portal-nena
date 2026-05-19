@@ -365,80 +365,95 @@
   </div>
 
   <script>
-    const semanas = document.querySelectorAll('.semana');
-    const player = document.getElementById('player');
-    const audio = document.getElementById('audioPlayer');
-    const playerWeek = document.getElementById('playerWeek');
+  const semanas = document.querySelectorAll('.semana');
+  const player = document.getElementById('player');
+  const audio = document.getElementById('audioPlayer');
+  const playerWeek = document.getElementById('playerWeek');
 
-    async function arquivoExiste(url) {
-      try {
-        const resposta = await fetch(url, {
-          method: 'HEAD',
-          cache: 'no-store'
-        });
-        return resposta.ok;
-      } catch {
-        return false;
-      }
+  function gerarTentativas(basePath) {
+    const versao = Date.now();
+
+    return [
+      `${basePath}.mp3?v=${versao}`,
+      `${basePath}.m4a?v=${versao}`,
+      `./${basePath}.mp3?v=${versao}`,
+      `./${basePath}.m4a?v=${versao}`
+    ];
+  }
+
+  async function tentarAudio(lista, index = 0) {
+    if (index >= lista.length) {
+      alert('Áudio não encontrado.');
+      return;
     }
 
-    async function localizarAudio(basePath) {
-      const versao = Date.now();
+    const url = lista[index];
 
-      const tentativas = [
-        `${basePath}.mp3?v=${versao}`,
-        `${basePath}.m4a?v=${versao}`,
-        `./${basePath}.mp3?v=${versao}`,
-        `./${basePath}.m4a?v=${versao}`
-      ];
+    audio.src = url;
+    audio.load();
 
-      for (const caminho of tentativas) {
-        if (await arquivoExiste(caminho)) {
-          return caminho;
-        }
-      }
+    const sucesso = await new Promise(resolve => {
 
-      return null;
-    }
+      const timeout = setTimeout(() => {
+        resolve(false);
+      }, 3000);
 
-    semanas.forEach(semana => {
-      semana.onclick = async function(e) {
-        e.preventDefault();
-
-        const baseAudio = this.getAttribute('data-audio');
-        const num = this.querySelector('.semana-num').innerText;
-        const data = this.querySelector('.semana-data').innerText;
-
-        playerWeek.innerText = num + ' • ' + data;
-        player.classList.add('active');
-
-        const audioEncontrado = await localizarAudio(baseAudio);
-
-        if (audioEncontrado) {
-          audio.src = audioEncontrado;
-          audio.load();
-
-          audio.play().catch(() => {
-            console.log('Autoplay bloqueado pelo navegador.');
-          });
-        } else {
-          alert('Áudio não encontrado na pasta SOM5.');
-        }
+      audio.oncanplaythrough = () => {
+        clearTimeout(timeout);
+        resolve(true);
       };
+
+      audio.onerror = () => {
+        clearTimeout(timeout);
+        resolve(false);
+      };
+
     });
 
-    function closePlayer() {
-      player.classList.remove('active');
-      audio.pause();
-      audio.currentTime = 0;
-      audio.src = '';
+    if (sucesso) {
+      audio.play().catch(() => {
+        console.log('Autoplay bloqueado.');
+      });
+    } else {
+      tentarAudio(lista, index + 1);
     }
+  }
 
-    player.onclick = function(e) {
-      if (e.target === player) {
-        closePlayer();
-      }
+  semanas.forEach(semana => {
+
+    semana.onclick = function(e) {
+
+      e.preventDefault();
+
+      const baseAudio = this.getAttribute('data-audio');
+
+      const num = this.querySelector('.semana-num').innerText;
+      const data = this.querySelector('.semana-data').innerText;
+
+      playerWeek.innerText = num + ' • ' + data;
+
+      player.classList.add('active');
+
+      const tentativas = gerarTentativas(baseAudio);
+
+      tentarAudio(tentativas);
+
     };
-  </script>
+
+  });
+
+  function closePlayer() {
+    player.classList.remove('active');
+    audio.pause();
+    audio.currentTime = 0;
+    audio.src = '';
+  }
+
+  player.onclick = function(e) {
+    if (e.target === player) {
+      closePlayer();
+    }
+  };
+</script>
 </body>
 </html>
